@@ -217,8 +217,6 @@
 
             /**
              * Actually render the graph, invoking Highcharts.Chart
-             * @param {function} callback A callback function to fire when
-             *                      the graph is rendered.
              */
             this.render = function () {
                 var self = this,
