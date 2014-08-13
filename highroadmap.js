@@ -1,5 +1,6 @@
 /*!
 * highroadmap v0.2
+* Pascal Lando, 2014
 */
 
 /*jslint indent: 4 */
@@ -14,7 +15,7 @@
                 render_to: null,
                 callback: null,
                 color_grouping: 'status', // status || component,
-                show_navigation: true
+                show_navigation: false
             },
             settings = $.extend({}, defaults, options);
 
