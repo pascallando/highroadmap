@@ -135,8 +135,8 @@ The available options are listed in the table bellow:
 | ------------- |----------------|----------------|----------|
 | `items` | array |  | A list of Javascript objects containing items informations. |
 | `show_navigation` | boolean | false | When set to `true`, Highroadmap will add a couple of navigation and filtering tool above the roadmap. |
-| `color_grouping` | string | "status" | Allows to define how the items will be colored on the roadmap. "status" mode will colorize all items with same status with a common color. "component" will colorize all items with same component with a common color. |
-| `default_colors` | array | ['#428BCA', '#5CB85C', '#F0AD4E', '#D9534F', '#777777', '#5BC0DE', '#42caa8', '#cab542', '#e97fea', '#c4eaa2'] | A list of strings representing HEX colors which are used if `color_grouping` is set to "component". |
+| `color_grouping` | string | "status" | Allows to define how the items will be colored on the roadmap. `"status"` mode will colorize all items with same status with a common color. `"component"` will colorize all items with same component with a common color. |
+| `default_colors` | array | ['#428BCA', '#5CB85C', '#F0AD4E', '#D9534F', '#777777', '#5BC0DE', '#42caa8', '#cab542', '#e97fea', '#c4eaa2'] | A list of strings representing HEX colors which are used if `color_grouping` is set to `"component"`. |
 | `callback(roadmap)` | function |  | A function to be fired when the roadmap has been rendered. The `roadmap` object is passed to the function. Highcharts chart object is accessible as a `chart` property of this object (`roadmap.chart`). |
 
 
