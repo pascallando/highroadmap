@@ -224,7 +224,6 @@
                     begin_time = limits[0].getTime(),
                     end_time = limits[1].getTime();
 
-
                 this.build_components_map();
 
                 self.chart = new Highcharts.Chart({
@@ -314,13 +313,10 @@
                             if (this.point.component_name) {
                                 content += '<br/><em>' + this.point.component_name + '</em>';
                             }
-
                             content += '<br/>' + Highcharts.dateFormat('%e/%b/%Y', this.point.low) + " - " + Highcharts.dateFormat('%e/%b/%Y', this.point.high)
-
                             if (this.point.status) {
                                 content += '<br/>' + this.point.status;
                             }
-
                             return content;
                         }
                     },
