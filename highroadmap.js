@@ -12,7 +12,6 @@
     $.fn.highroadmap = function (options) {
         var defaults = {
                 default_colors: null,
-                render_to: null,
                 callback: null,
                 color_grouping: 'status', // status || component,
                 show_navigation: false
