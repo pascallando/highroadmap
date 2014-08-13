@@ -5,6 +5,10 @@ $.fn.highroadmap.labels = {
     four_weeks: "quatre semaines",
     yearly: "annuel",
     formatting: "formatage",
+    coloring: "couleurs",
     nothing: "aucun",
-    week_short: "s"
+    week_short: "s",
+    by_status: "par statut",
+    by_component: "par composent",
+    filter: "filtre"
 }

@@ -1,18 +1,41 @@
-var today = new Date();
 var items = [
     {
         name: "One",
-        due_date: new Date(),
-        estimate: 7,
+        begin_date: new Date(2014, 0, 1),
+        end_date: new Date(2014, 0, 31),
         component: 'Comp_1',
         status: 'Done'
     },
     {
         name: "Two",
-        due_date: new Date(today.getFullYear(), today.getMonth()+1, today.getDate()),
-        estimate: 10,
+        begin_date: new Date(2014, 1, 5),
+        end_date: new Date(2014, 2, 12),
         component: 'Comp_2',
-        status: 'Done',
+        status: 'On hold',
+        url: "http://github.com"
+    },
+    {
+        name: "Three",
+        begin_date: new Date(2014, 0, 22),
+        end_date: new Date(2014, 2, 2),
+        component: 'Comp_2',
+        status: 'In progress',
+        url: "http://github.com"
+    },
+    {
+        name: "Four",
+        begin_date: new Date(2014, 1, 26),
+        end_date: new Date(2014, 4, 2),
+        component: 'Comp_3',
+        status: 'Todo',
+        url: "http://github.com"
+    },
+    {
+        name: "Five",
+        begin_date: new Date(2014, 4, 2),
+        end_date: new Date(2014, 4, 4),
+        component: 'Comp_3',
+        status: 'Todo',
         url: "http://github.com"
     }
 ];
@@ -51,8 +74,12 @@ asyncTest("Initialization with multiple items", function(assert) {
     $('body').append($('<div id="my_roadmap">'));
     $('#my_roadmap').highroadmap({
         items: items,
+        show_navigation: false,
+        color_grouping: 'status',
+
         // default_colors: ['#000'],
-        callback: function (event) {
+        callback: function (roadmap, event) {
+            console.log(roadmap.calculate_series());
             ok(true, "Roadmap rendered !");
             start();
         }

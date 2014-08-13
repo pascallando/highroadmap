@@ -1,9 +1,9 @@
 /*!
-* highroadmap v0.1
+* highroadmap v0.2
 */
 
 /*jslint indent: 4 */
-/*global window, $, Highcharts */
+/*global window, $, Highcharts, jQuery */
 
 (function ($) {
     "use strict";
@@ -24,7 +24,7 @@
          */
         var uc_first = function (string) {
             return string.charAt(0).toUpperCase() + string.slice(1);
-        }
+        };
 
         /**
          * Checks if Highcharts is loaded
@@ -34,7 +34,7 @@
                 throw 'Highcharts not loaded';
             }
             Highcharts.setOptions({global: {useUTC: false}}); // Fixe les décalages dus au timezone delay
-        }
+        };
 
         /**
          * Checks if a translation dict has been initialized by the user.
@@ -48,35 +48,42 @@
                 four_weeks: "4 weeks",
                 yearly: "yearly",
                 formatting: "layout",
+                coloring: "colors",
                 nothing: "nothing",
-                week_short: "w"
-            }
+                week_short: "w",
+                by_status: "by status",
+                by_component: "by component",
+                filter: "filter"
+            };
 
-            if (typeof $.fn.highroadmap.labels != 'undefined') {
-                $.each($.fn.highroadmap.labels, function(index, label) {
+            if (typeof $.fn.highroadmap.labels !== 'undefined') {
+                $.each($.fn.highroadmap.labels, function (index, label) {
                     default_labels[index] = label;
                 });
             }
             $.fn.highroadmap.labels = default_labels;
-        }
+        };
 
         check_lang_pack();
         check_highcharts();
 
-
         /**
          * The Roadmap class
+         * @constructor
+         * @param {array} items The list of items to process
+         * @param {jQuery} where_to_render The graph destination selector
          */
         function Roadmap(items, where_to_render) {
             var ONE_DAY_MS = 1000 * 60 * 60 * 24;
 
             this.chart = null;
-            this.items = items || [];
             this.default_colors = ['#428BCA', '#5CB85C', '#F0AD4E', '#D9534F', '#777777', '#5BC0DE', '#42caa8', '#cab542', '#e97fea', '#c4eaa2'];
             this.comps = {};
             this.where_to_render = where_to_render || '#highroadmap_graph';
             this.plot_bands = [];
             this.color_grouping = 'status';
+            this.items = items || [];
+            this.displayed_items = items || [];
 
             /**
              * Bilds a dict of all components (item.component)
@@ -85,200 +92,140 @@
             this.build_components_map = function () {
                 var self = this,
                     components_length = 0,
-                    i;
+                    i,
+                    item;
 
-                for (i = self.items.length - 1; i >= 0; i--) {
-                    if (self.comps[self.items[i].component] === undefined) {
+                for (i = self.displayed_items.length - 1; i >= 0; i--) {
+                    item = self.displayed_items[i];
+
+                    if (self.comps[item.component] === undefined) {
                         try {
-                            self.comps[self.items[i].component] = self.default_colors[components_length];
+                            self.comps[item.component] = self.default_colors[components_length];
                         } catch (e) {
-                            self.comps[self.items[i].component] = '#EEEEEE';
+                            self.comps[item.component] = '#EEEEEE';
                         }
                         components_length++;
                     }
                 }
             };
 
-            this.calculate_lines = function () {
-                var lines = [];
+            /**
+             * Find the color to apply to an item bar
+             * @param {object} item The item to process
+             * @return {string} The HEX color code
+             */
+            this.get_item_color = function (item) {
+                var self = this,
+                    color = '#C9302C';
 
-                $.each(this.items, function (id, item) {
-                    var item_begin_time = item.due_date.getTime() - item.estimate * (ONE_DAY_MS);
-                    var item_end_time = item.due_date.getTime();
-                    var item_length = item_end_time - item_begin_time;
-
-                    var item_dict = {id: item.id, name: item.name, url: item.url, component: item.component, status: item.status, item_length: item_length, begin_time: item_begin_time, end_time: item_end_time, natural_begin_time: new Date(item_begin_time), natural_end_time: new Date(item_end_time)};
-
-                    if (lines.length === 0) {
-                        lines.push([item_dict]);
-                    } else {
-                        var item_inserted = false;
-                        $.each(lines, function (id_line, line) { // On parcourt les lignes existantes pour trouver une place à notre item...
-                            $.each(line, function (id_block, block) { // Sur chaque ligne, on parcourt les blocks...
-                                if (item_inserted === false) {
-                                    if (id_block === 0 && item_end_time <= block.begin_time) { // On est sur le premier item de la ligne et l'item à insérer est avant lui
-                                        line.unshift(item_dict);
-                                        item_inserted = true;
-                                    } else {
-                                        if (id_block === line.length - 1 && item_begin_time >= block.end_time) { // On est sur le dernier item de la ligne et l'item à insérer est après lui
-                                            line.push(item_dict);
-                                            item_inserted = true;
-                                        } else {
-                                            if (line[id_block - 1] !== undefined && item_begin_time >= line[id_block - 1].end_time && item_end_time <= block.begin_time) { // On est sur un block et l'item peut se caser entre le block précédent et celui-ci
-                                                line.splice(id_block, 0, item_dict);
-                                                item_inserted = true;
-                                            }
-                                        }
-                                    }
-                                }
-                            });
-                        });
-                        if (item_inserted === false) { // On n'a pas réussi à le casser dans un espace vide, on crée une ligne
-                            lines.push([item_dict]);
-                        }
+                switch (self.color_grouping) {
+                case 'status':
+                    switch (item.status) {
+                    case "Done":
+                        color = "#5BB75B";
+                        break;
+                    case "In progress":
+                        color = "#3080ed";
+                        break;
+                    case "On hold":
+                        color = "#ffca59";
+                        break;
+                    default:
+                        color = "#C9302C";
+                        break;
                     }
-                });
-                return lines;
-            };
-
-            this.insert_blanks_in_lines = function (lines) {
-                var lines_with_blanks = [],
-                    blank_dict,
-                    i;
-
-                $.each(lines, function (id, line) { // Pour chaque ligne...
-                    lines_with_blanks.push([]);
-                    $.each(line, function (id_block, block) { // Pour chaque block...
-                        if (id_block === 0) { // C'est le premier, on ajoute un block vide au début de la nouvelle ligne...
-                            blank_dict = {id: null, name: "BLANK", component: "", item_length: block.begin_time, begin_time: 0, end_time: block.begin_time, natural_begin_time: new Date(0), natural_end_time: new Date(block.begin_time)};
-                            lines_with_blanks[id].push(blank_dict);
-                        } else {
-                            if (line[id_block - 1].id !== null) { // Si le block précédent n'est pas déjà un blanc, on ajoute un blanc avant le block en cours
-                                blank_dict = {id: null, name: 'BLANK', component: '', begin_time: line[id_block - 1].end_time, end_time: block.begin_time};
-                                blank_dict.item_length = blank_dict.end_time - blank_dict.begin_time;
-                                blank_dict.natural_begin_time = new Date(blank_dict.begin_time);
-                                blank_dict.natural_end_time = new Date(blank_dict.end_time);
-                                lines_with_blanks[id].push(blank_dict);
-                            }
-                        }
-                        // On insère le block à la fin de la nouvelle ligne
-                        lines_with_blanks[id].push({id: block.id, url: block.url, name: block.name, component: block.component, status: block.status, begin_time: block.begin_time, end_time: block.end_time, item_length: block.item_length, natural_begin_time: block.natural_begin_time, natural_end_time: block.natural_end_time});
-                    });
-                });
-
-                var max_length = 0;
-                for (i = 0; i < lines_with_blanks.length; i++) {
-                    if (lines_with_blanks[i].length > max_length) {
-                        max_length = lines_with_blanks[i].length;
-                    }
+                    break;
+                case 'component':
+                    color = self.comps[item.component];
+                    break;
                 }
 
-                $.each(lines_with_blanks, function (id, line) {
-                    var missing_lines = max_length - line.length;
-                    if (missing_lines > 0) {
-                        for (i = 0; i < missing_lines; i++) {
-                            line.push({id: null, name: "BLANK", item_length: 0});
-                        }
-                    }
-                });
-                return lines_with_blanks;
+                return color;
             };
 
+            /**
+             * Generate a series object to feed the Highcharts chart
+             * @return {array} The series object
+             */
             this.calculate_series = function () {
                 var self = this,
-                    lines = this.insert_blanks_in_lines(this.calculate_lines()),
+                    item,
+                    color,
+                    item_dict,
                     series = [],
-                    block_id = 0,
-                    remaining_items,
-                    serie;
+                    lines = [],
+                    i,
+                    j,
+                    k,
+                    inserted,
+                    line,
+                    can_insert_on_line,
+                    bar;
 
-                do {
-                    remaining_items = false;
-                    serie = {data: [], name: []};
+                for (i = self.displayed_items.length - 1; i >= 0; i--) {
+                    item = self.displayed_items[i];
+                    color = this.get_item_color(item);
+                    inserted = false;
+                    item_dict = {
+                        low: item.begin_date.getTime(),
+                        high: item.end_date.getTime(),
+                        url: item.url,
+                        task_name: item.name,
+                        component_name: item.component,
+                        status: item.status,
+                        color: color,
+                        borderColor: color
+                    };
 
-                    $.each(lines, function (id, line) {
-                        if (line[block_id] !== undefined) {
-                            serie.data.push({y: line[block_id].item_length});
-                            serie.name.push({id: line[block_id].id, url: line[block_id].url, task_name: line[block_id].name, component_name: line[block_id].component, begin_date: line[block_id].begin_time, end_date: line[block_id].end_time, status: line[block_id].status });
+                    for (j = 0; j < lines.length; j++) {
+                        line = lines[j];
+                        can_insert_on_line = true;
 
-                            switch (self.color_grouping) {
-                            case 'status':
-                                switch(line[block_id].status) {
-                                    case "Done":
-                                        serie.data[serie.data.length - 1].color = "#3080ed";
-                                        break;
-                                    case "In progress":
-                                        serie.data[serie.data.length - 1].color = "#ffca59";
-                                        break;
-                                    case "On hold":
-                                        serie.data[serie.data.length - 1].color = "#987aed";
-                                        break;
-                                    case "To do":
-                                        serie.data[serie.data.length - 1].color = "#d95668";
-                                        break;
-                                    default:
-                                        serie.data[serie.data.length - 1].color = "transparent";
-                                        serie.data[serie.data.length - 1].borderColor = "transparent";
-                                        break;
-                                }
-                                break;
-                            case 'component':
-                                if (line[block_id].component === undefined || line[block_id].component === '') {
-                                    serie.data[serie.data.length - 1].color = 'transparent';
-                                    serie.data[serie.data.length - 1].borderColor = 'transparent';
-                                } else {
-                                    serie.data[serie.data.length - 1].color = self.comps[line[block_id].component];
-                                }
+                        for (k = line.length - 1; k >= 0; k--) {
+                            bar = line[k];
+                            if (item_dict.low < bar.high && item_dict.high > bar.low) {
+                                can_insert_on_line = false;
                                 break;
                             }
-
-                            serie.borderColor = "transparent";
-                            serie.borderWidth = 0;
-                            serie.dataLabels = {
-                                enabled: true,
-                                color: '#333',
-                                align: 'center',
-                                style: {
-                                    //fontWeight:'bold',
-                                    fontSize: "9px",
-                                    //letterSpacing: "-1px"
-                                },
-
-                                formatter: function() {
-                                    // Si le range de dates est trop important (> 8 semaines), on cache les labels
-                                    var range = this.series.yAxis.getExtremes();
-                                    if (range.max - range.min > (15 * 7 * ONE_DAY_MS) || this.series.name[this.x].task_name === "BLANK") {
-                                        return '';
-                                    }
-                                    return this.series.name[this.x].task_name;
-                                }
-                            };
-
-                            remaining_items = true;
                         }
-                    });
 
-                    if (serie.data.length > 0) {
-                        series.unshift(serie);
+                        if (can_insert_on_line) {
+                            line.push(item_dict);
+                            inserted = true;
+                            break;
+                        }
                     }
-                    block_id++;
-                } while (remaining_items);
 
-                return series;
+                    if (!inserted) {
+                        lines.push([item_dict]);
+                    }
+
+                }
+
+                // Transform lines to series
+                $.each(lines, function (key_line, line) {
+                    for (i = line.length - 1; i >= 0; i--) {
+                        bar = line[i];
+                        bar.x = key_line;
+                        series.push(bar);
+                    }
+                });
+
+                return [{data: series}];
             };
+
 
             /**
              * Actually render the graph, invoking Highcharts.Chart
              * @param {function} callback A callback function to fire when
              *                      the graph is rendered.
              */
-            this.render = function (callback) {
+            this.render = function () {
                 var self = this,
-                    now = new Date(),
-                    last_monday = now.getTime() - (now.getDay() - 1) * ONE_DAY_MS,
-                    next_sunday = now.getTime() + (6 - now.getDay()) * ONE_DAY_MS,
-                    begin_time = last_monday - (ONE_DAY_MS * 7 * 4), // Quatre semaines plus tôt
-                    end_time = next_sunday + (ONE_DAY_MS * 7 * 4); // Quatre semaines plus tard
+                    limits = self.calculate_extremes(),
+                    begin_time = limits[0].getTime(),
+                    end_time = limits[1].getTime();
+
 
                 this.build_components_map();
 
@@ -288,21 +235,15 @@
                     legend: false,
                     chart: {
                         renderTo: self.where_to_render,
-                        zoomType: 'y',
-                        type: 'bar',
-                        events: {
-                            load: function (event) {
-                                if (callback) {
-                                    callback(event);
-                                }
-                            }
-                        }
+                        type: 'columnrange',
+                        inverted: true,
+                        zoomType: 'y'
                     },
                     xAxis: {
                         title: {text: ''},
                         labels: {enabled: false},
                         tickWidth: 0,
-                        lineColor: "transparent",
+                        lineColor: "#FFFFFF",
                     },
                     yAxis: {
                         title: {text: ''},
@@ -318,7 +259,7 @@
                             month: '%b/%y',
                             year: '%Y'
                         },
-                        gridLineColor: "#dedede",
+                        gridLineColor: "#ddd",
                         gridLineDashStyle: 'shortdash',
 
                         // Draw a vertical line today
@@ -331,27 +272,58 @@
                     },
                     plotOptions: {
                         series: {
-                            stacking: 'normal',
+                            groupPadding: 0.1,
+                            pointPadding: 0.06,
                             shadow: false,
                             animation: false,
-                            borderRadius: 5,
+                            borderRadius: 3,
+                            borderColor: false,
                             events: {
                                 click: function (event) {
-                                    if (event.point.series.name[event.point.x].url) {
-                                        window.location.replace(event.point.series.name[event.point.x].url);
+                                    if (event.point.url) {
+                                        window.location.replace(event.point.url);
                                     } else {
                                         return false;
                                     }
                                 }
                             }
                         },
+                        columnrange: {
+                            dataLabels: {
+                                enabled: true,
+                                inside: true,
+                                align: 'center',
+                                color: '#444',
+                                style: {
+                                    fontSize: '9px',
+                                },
+                                formatter: function () {
+                                    // Si le range de dates est trop important (> 8 semaines), on cache les labels
+                                    var range = this.point.series.yAxis.getExtremes();
+                                    if (range.max - range.min > (15 * 7 * ONE_DAY_MS)) {
+                                        return '';
+                                    }
+                                    return this.point.task_name;
+                                }
+                            }
+                        }
                     },
+
                     tooltip: {
                         formatter: function () {
-                            if (this.series.name[this.x] === undefined  || this.series.name[this.x].task_name === "BLANK") {
-                                return false;
+                            var content = '<strong>' + this.point.task_name + '</strong>';
+
+                            if (this.point.component_name) {
+                                content += '<br/><em>' + this.point.component_name + '</em>';
                             }
-                            return '<b>' + this.series.name[this.x].component_name + "</b><br/>" + this.series.name[this.x].task_name + "<br/>" + Highcharts.dateFormat('%e/%b/%Y', this.series.name[this.x].begin_date) + " - " + Highcharts.dateFormat('%e/%b/%Y', this.series.name[this.x].end_date) + "<br/>" + this.series.name[this.x].status;
+
+                            content += '<br/>' + Highcharts.dateFormat('%e/%b/%Y', this.point.low) + " - " + Highcharts.dateFormat('%e/%b/%Y', this.point.high)
+
+                            if (this.point.status) {
+                                content += '<br/>' + this.point.status;
+                            }
+
+                            return content;
                         }
                     },
 
@@ -359,8 +331,40 @@
                 });
             };
 
+            /**
+             * Calculates the chart extremes depending of all the items
+             * @return {array} A tuple representing the min date and max date
+             */
+            this.calculate_extremes = function () {
+                var self = this,
+                    min_date = new Date(2100, 1, 1),
+                    max_date = new Date(1900, 1, 1),
+                    i,
+                    item;
+
+                for (i = self.displayed_items.length - 1; i >= 0; i--) {
+                    item = self.displayed_items[i];
+                    if (item.begin_date < min_date) {
+                        min_date = item.begin_date;
+                    }
+                    if (item.end_date > max_date) {
+                        max_date = item.end_date;
+                    }
+                }
+                return [min_date, max_date];
+            };
+
+            /**
+             * Set chart extremes according to a period shortcut
+             * @param {string} period A period shorctut in:
+             *                  - current_week
+             *                  - four_weeks
+             *                  - annual
+             *                  - all
+             */
             this.set_period = function (period) {
-                var begin_time = null,
+                var self = this,
+                    begin_time = null,
                     end_time = null,
                     today = new Date();
 
@@ -372,12 +376,17 @@
                 case "four_weeks":
                     var last_monday = today.getTime() - (today.getDay() - 1) * ONE_DAY_MS;
                     var next_sunday = today.getTime() + (6 - today.getDay()) * ONE_DAY_MS;
-                    begin_time = last_monday - (ONE_DAY_MS * 7 * 4); // Quatre semaines plus tôt
-                    end_time = next_sunday + (ONE_DAY_MS * 7 * 4); // Quatre semaines plus tôt
+                    begin_time = last_monday - (ONE_DAY_MS * 7 * 4); // Four weeks earlier
+                    end_time = next_sunday + (ONE_DAY_MS * 7 * 4); // Four weeks later
                     break;
                 case "annual":
-                    begin_time = Date.UTC(today.getFullYear(), 0, 0);
-                    end_time = Date.UTC(today.getFullYear(), 11, 30);
+                    begin_time = new Date(today.getFullYear(), 0, 0);
+                    end_time = new Date(today.getFullYear(), 11, 30);
+                    break;
+                case "all":
+                    var limits = self.calculate_extremes();
+                    begin_time = limits[0];
+                    end_time = limits[1];
                     break;
                 default:
                     break;
@@ -386,6 +395,14 @@
                 this.chart.yAxis[0].setExtremes(begin_time, end_time);
             };
 
+            /**
+             * Graphically highlights a part of the chart according to
+             * a period shortcut
+             * @param {string} period A period shorctut in:
+             *                  - current_week
+             *                  - next_week
+             *                  - four_weeks
+             */
             this.highlight_period = function (period) {
                 var self = this,
                     today = new Date(),
@@ -413,7 +430,7 @@
                         id: "plotBand_thisWeek",
                         from: this_sprint_begin,
                         to: this_sprint_end,
-                        color: "#fee",
+                        color: "#F2DEDE",
                         label: {text: uc_first($.fn.highroadmap.labels.current_week)}
                     });
                     self.plot_bands = ['plotBand_thisWeek'];
@@ -425,7 +442,7 @@
                         id: "plotBand_nextWeek",
                         from: next_sprint_begin,
                         to: next_sprint_end,
-                        color: "#dfffdf",
+                        color: "#DFF0D8",
                         label: {text: uc_first($.fn.highroadmap.labels.next_week)}
                     });
                     self.plot_bands = ['plotBand_nextWeek'];
@@ -440,7 +457,7 @@
                         if (i % 2 === 1) {
                             color = "#dedede";
                         } else {
-                            color = "#efefef";
+                            color = "#F5F5F5";
                         }
 
                         if (i === 4) {
@@ -462,6 +479,9 @@
                 }
             };
 
+            /**
+             * Remove all graphical highlightings
+             */
             this.remove_highlighting = function () {
                 var self = this,
                     i;
@@ -471,12 +491,35 @@
                 }
             };
 
+            /**
+             * Filters the displayed items list according to a text string
+             * @param {string} text A string to filter on
+             */
+            this.filter_items = function (text) {
+                var self = this,
+                    i,
+                    item;
+
+                text = text.toLowerCase();
+                self.displayed_items = [];
+
+                for (i = self.items.length - 1; i >= 0; i--) {
+                    item = self.items[i];
+                    if (item.name.toLowerCase().indexOf(text) !== -1 || item.component.toLowerCase().indexOf(text) !== -1) {
+                        self.displayed_items.push(item);
+                    }
+                }
+
+                self.render();
+            };
+
         }
 
 
         return this.each(function () {
-            var $wrapper = $(this).wrap('<div class="roadmap-wrapper"></div>');
-            var roadmap = new Roadmap(settings.items, $wrapper[0], settings.callback);
+            var $wrapper = $(this).wrap('<div class="highroadmap-wrapper"></div>');
+            var $graph = $('<div class="highroadmap-graph"></div>').appendTo($wrapper);
+            var roadmap = new Roadmap(settings.items, $graph[0], settings.callback);
 
             if (settings.default_colors) {
                 roadmap.default_colors = settings.default_colors;
@@ -509,7 +552,16 @@
                         '<li><a data-action="highlight-period" data-period="four_weeks" href="#">' + uc_first($.fn.highroadmap.labels.four_weeks) + '</a></li>' +
                         '<li><a data-action="highlight-period" data-period="none" href="#">' + uc_first($.fn.highroadmap.labels.nothing) + '</a></li>' +
                     '</ul>' +
-                '</div></div>';
+                '</div>' +
+                '<div class="btn-group">' +
+                    '<button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown">' + uc_first($.fn.highroadmap.labels.coloring) + ' <span class="caret"></span></button>' +
+                    '<ul class="dropdown-menu" role="menu">' +
+                        '<li><a data-action="update-color-grouping" data-type="status" href="#">' + uc_first($.fn.highroadmap.labels.by_status) + '</a></li>' +
+                        '<li><a data-action="update-color-grouping" data-type="component" href="#">' + uc_first($.fn.highroadmap.labels.by_component) + '</a></li>' +
+                    '</ul>' +
+                '</div></div>'+
+                '<div class="col-xs-2"><input type="text" class="roadmaper-filter form-control" placeholder="' + uc_first($.fn.highroadmap.labels.filter) + '"></div>';
+
 
                 $wrapper.prepend('<div class="highroadmap-btns">' + btns + '</div>');
 
@@ -522,6 +574,18 @@
                     var period = $(this).data('period');
                     roadmap.highlight_period(period);
                 });
+
+                $wrapper.on('click', 'a[data-action="update-color-grouping"]', function () {
+                    var type = $(this).data('type');
+                    roadmap.color_grouping = type;
+                    roadmap.render();
+                });
+
+                $wrapper.on('keyup', 'input.roadmaper-filter', function () {
+                    var text = $(this).val();
+                    roadmap.filter_items(text);
+                });
+
             }
 
         });
