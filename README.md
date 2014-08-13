@@ -1,7 +1,7 @@
 Highroadmap
 ===========
 
-Highroadmap is **a simple roadmap graphs generator** based on Highcharts library.
+Highroadmap is **a simple roadmap graphs generator** based on Highcharts library, with zooming, filtering and highlighting capabilities.
 
 Requirements
 ------------
