@@ -13,6 +13,7 @@ Requirements
 Example
 -------
 ![Highroadmap example](http://img15.hostingpics.net/pics/974375highmaps.png "Highroadmap")
+See it live on [JSFiddle](http://jsfiddle.net/jzvnjbrw/)
 
 Installation
 ------------
